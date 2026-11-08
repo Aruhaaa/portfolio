@@ -2,63 +2,61 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Models\PersonalInfo;
+use App\Models\Skill;
+use App\Models\Experience;
+use App\Models\Project;
 
 class PortfolioController extends Controller
 {
+    /**
+     * Get all portfolio data from the database.
+     */
+    private function getPortfolioData(): array
+    {
+        $info = PersonalInfo::first();
+        $skills = Skill::orderBy('sort_order')->get();
+        $experiences = Experience::orderBy('sort_order')->get();
+        $projects = Project::orderBy('sort_order')->get();
+
+        return [
+            'personal_info' => $info ? $info->toArray() : [],
+            'skills' => $skills->map(fn($s) => [
+                'category' => $s->category,
+                'items' => $s->items,
+            ])->toArray(),
+            'experience' => $experiences->map(fn($e) => [
+                'role' => $e->role,
+                'company' => $e->company,
+                'duration' => $e->duration,
+                'description' => $e->description,
+            ])->toArray(),
+            'projects' => $projects->map(fn($p) => [
+                'id' => $p->id,
+                'title' => $p->title,
+                'description' => $p->description,
+                'tech_stack' => $p->tech_stack,
+                'link' => $p->link,
+                'repo_link' => $p->repo_link,
+                // Only screenshots uploaded from admin are shown; old remote URLs are ignored.
+                'image' => ($p->thumbnail && !preg_match('#^https?://#i', $p->thumbnail))
+                    ? asset($p->thumbnail)
+                    : null,
+                'featured' => $p->featured,
+                'is_hero' => $p->is_hero,
+            ])->toArray(),
+        ];
+    }
+
     public function index()
     {
-        $portfolio_data = [
-            'personal_info' => [
-                'name' => 'Alex Morgan',
-                'title' => 'Senior IT Systems Engineer',
-                'bio' => 'Passionate about building robust infrastructure, optimizing cloud deployments, and automating complex workflows. With over 8 years of experience in IT operations and software development, I bridge the gap between development and operations.',
-                'email' => 'alex.morgan@example.com',
-                'github' => 'https://github.com/',
-                'linkedin' => 'https://linkedin.com/'
-            ],
-            'skills' => [
-                ['category' => 'Cloud & Infrastructure', 'items' => ['AWS', 'Docker', 'Kubernetes', 'Terraform']],
-                ['category' => 'Backend Development', 'items' => ['PHP', 'Python', 'Node.js', 'PostgreSQL']],
-                ['category' => 'Frontend Development', 'items' => ['JavaScript', 'React', 'HTML5/CSS3']],
-                ['category' => 'DevOps & CI/CD', 'items' => ['GitHub Actions', 'Jenkins', 'Linux Administration', 'Bash Scripting']]
-            ],
-            'experience' => [
-                [
-                    'role' => 'Senior Systems Engineer',
-                    'company' => 'TechCorp Solutions',
-                    'duration' => '2021 - Present',
-                    'description' => 'Architected and maintained highly available AWS infrastructure. Implemented CI/CD pipelines reducing deployment time by 40%.'
-                ],
-                [
-                    'role' => 'IT Operations Analyst',
-                    'company' => 'Global Systems Inc.',
-                    'duration' => '2017 - 2021',
-                    'description' => 'Managed internal corporate networks, deployed virtualization solutions, and provided tier-3 technical support for enterprise applications.'
-                ]
-            ],
-            'projects' => [
-                [
-                    'title' => 'Cloud Migration Initiative',
-                    'description' => 'Successfully migrated legacy on-premise servers to AWS EC2 and RDS, improving uptime to 99.99%.',
-                    'tech_stack' => ['AWS EC2', 'AWS RDS', 'Terraform', 'Linux'],
-                    'link' => '#'
-                ],
-                [
-                    'title' => 'Automated Deployment Pipeline',
-                    'description' => 'Built a robust CI/CD pipeline using GitHub Actions and Docker to streamline application deployments.',
-                    'tech_stack' => ['Docker', 'GitHub Actions', 'Bash'],
-                    'link' => '#'
-                ],
-                [
-                    'title' => 'Internal Monitoring Dashboard',
-                    'description' => 'Developed a real-time monitoring dashboard for IT infrastructure using PHP and WebSockets.',
-                    'tech_stack' => ['PHP', 'JavaScript', 'MySQL'],
-                    'link' => '#'
-                ]
-            ]
-        ];
-
+        $portfolio_data = $this->getPortfolioData();
         return view('portfolio.index', compact('portfolio_data'));
+    }
+
+    public function projects()
+    {
+        $portfolio_data = $this->getPortfolioData();
+        return view('portfolio.projects', compact('portfolio_data'));
     }
 }
