@@ -208,7 +208,7 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>Screenshot (JPG, PNG or WebP, up to 4 MB)</label>
+                    <label>Screenshot (JPG, PNG or WebP, up to 3 MB)</label>
                     <input type="file" name="screenshot" accept="image/png,image/jpeg,image/webp">
                 </div>
                 <label class="checkbox-label">

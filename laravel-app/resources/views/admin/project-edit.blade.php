@@ -33,7 +33,7 @@
         @endif
 
         @php
-            $hasUpload = $project->thumbnail && !preg_match('#^https?://#i', $project->thumbnail);
+            $imageUrl = $project->imageUrl();
         @endphp
 
         <section class="admin-section">
@@ -65,13 +65,13 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="screenshot">{{ $hasUpload ? 'Replace screenshot' : 'Screenshot' }} (JPG, PNG or WebP, up to 4 MB)</label>
-                    @if($hasUpload)
-                        <img src="{{ asset($project->thumbnail) }}" alt="Current screenshot" style="display:block; max-width: 260px; margin-bottom: 0.75rem; border-radius: 0.5rem;">
+                    <label for="screenshot">{{ $imageUrl ? 'Replace screenshot' : 'Screenshot' }} (JPG, PNG or WebP, up to 3 MB)</label>
+                    @if($imageUrl)
+                        <img src="{{ $imageUrl }}" alt="Current screenshot" style="display:block; max-width: 260px; margin-bottom: 0.75rem; border-radius: 0.5rem;">
                     @endif
                     <input type="file" id="screenshot" name="screenshot" accept="image/png,image/jpeg,image/webp">
                 </div>
-                @if($hasUpload)
+                @if($imageUrl)
                     <label class="checkbox-label">
                         <input type="checkbox" name="remove_screenshot"> Remove current screenshot
                     </label>

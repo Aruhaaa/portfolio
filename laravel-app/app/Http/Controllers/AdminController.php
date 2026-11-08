@@ -6,8 +6,10 @@ use App\Models\PersonalInfo;
 use App\Models\Skill;
 use App\Models\Experience;
 use App\Models\Project;
+use App\Models\ProjectImage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 
 class AdminController extends Controller
@@ -26,7 +28,8 @@ class AdminController extends Controller
     }
 
     /**
-     * Handle admin login.
+     * Handle admin login. Wrong passwords are limited: a few tries per email and address,
+     * and a wider limit per address so a bot cannot just keep changing the email.
      */
     public function login(Request $request)
     {
@@ -35,9 +38,27 @@ class AdminController extends Controller
             'password' => 'required',
         ]);
 
+        $ip = (string) $request->ip();
+        $limits = [
+            'admin-login:' . Str::lower($credentials['email']) . '|' . $ip => 5,
+            'admin-login-ip:' . $ip => 20,
+        ];
+
+        foreach ($limits as $key => $max) {
+            if (RateLimiter::tooManyAttempts($key, $max)) {
+                $wait = RateLimiter::availableIn($key);
+                return back()->withErrors(['email' => "Too many attempts. Try again in {$wait} seconds."]);
+            }
+        }
+
         if (Auth::attempt($credentials)) {
+            RateLimiter::clear(array_key_first($limits));
             $request->session()->regenerate();
             return redirect()->route('admin.dashboard');
+        }
+
+        foreach (array_keys($limits) as $key) {
+            RateLimiter::hit($key, 60);
         }
 
         return back()->withErrors(['email' => 'Invalid credentials.']);
@@ -129,7 +150,7 @@ class AdminController extends Controller
     }
 
     /**
-     * Store a new project.
+     * Store a new project. The screenshot goes into the database (see ProjectImage).
      */
     public function storeProject(Request $request)
     {
@@ -139,28 +160,24 @@ class AdminController extends Controller
             'tech_stack' => 'required|string', // Comma-separated
             'link' => 'nullable|url|max:255',
             'repo_link' => 'nullable|url|max:255',
-            'screenshot' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
+            'screenshot' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072',
             'featured' => 'nullable',
         ]);
 
-        $thumbnail = null;
-        if ($request->hasFile('screenshot')) {
-            $file = $request->file('screenshot');
-            $name = Str::random(20) . '.' . $file->extension();
-            $file->move(public_path('uploads/projects'), $name);
-            $thumbnail = 'uploads/projects/' . $name;
-        }
-
-        Project::create([
+        $project = Project::create([
             'title' => $data['title'],
             'description' => $data['description'],
             'tech_stack' => array_map('trim', explode(',', $data['tech_stack'])),
             'link' => $data['link'] ?? '#',
             'repo_link' => $data['repo_link'] ?? null,
-            'thumbnail' => $thumbnail,
+            'thumbnail' => null,
             'featured' => isset($data['featured']),
             'sort_order' => Project::max('sort_order') + 1,
         ]);
+
+        if ($request->hasFile('screenshot')) {
+            ProjectImage::storeFor($project, $request->file('screenshot'));
+        }
 
         return back()->with('success', 'Project added!');
     }
@@ -184,24 +201,18 @@ class AdminController extends Controller
             'tech_stack' => 'required|string', // Comma-separated
             'link' => 'nullable|url|max:255',
             'repo_link' => 'nullable|url|max:255',
-            'screenshot' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
+            'screenshot' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072',
         ]);
 
-        $hasUpload = $project->thumbnail && !preg_match('#^https?://#i', $project->thumbnail);
         $thumbnail = $project->thumbnail;
 
         if ($request->hasFile('screenshot')) {
-            $file = $request->file('screenshot');
-            $name = Str::random(20) . '.' . $file->extension();
-            $file->move(public_path('uploads/projects'), $name);
-            if ($hasUpload) {
-                @unlink(public_path($project->thumbnail));
-            }
-            $thumbnail = 'uploads/projects/' . $name;
+            ProjectImage::storeFor($project, $request->file('screenshot'));
+            $this->forgetOldFile($project);
+            $thumbnail = null;
         } elseif ($request->boolean('remove_screenshot')) {
-            if ($hasUpload) {
-                @unlink(public_path($project->thumbnail));
-            }
+            ProjectImage::where('project_id', $project->id)->delete();
+            $this->forgetOldFile($project);
             $thumbnail = null;
         }
 
@@ -223,9 +234,8 @@ class AdminController extends Controller
      */
     public function deleteProject(Project $project)
     {
-        if ($project->thumbnail && !preg_match('#^https?://#i', $project->thumbnail)) {
-            @unlink(public_path($project->thumbnail));
-        }
+        ProjectImage::where('project_id', $project->id)->delete();
+        $this->forgetOldFile($project);
         $project->delete();
         return back()->with('success', 'Project deleted!');
     }
@@ -248,9 +258,19 @@ class AdminController extends Controller
             $project->is_hero = false;
             $msg = 'Removed from hero projects.';
         }
-        
+
         $project->save();
-        
+
         return back()->with('success', $msg);
+    }
+
+    /**
+     * Screenshots used to be files in public/uploads. Remove one if it is still there.
+     */
+    private function forgetOldFile(Project $project): void
+    {
+        if ($project->thumbnail && !preg_match('#^https?://#i', $project->thumbnail)) {
+            @unlink(public_path($project->thumbnail));
+        }
     }
 }
