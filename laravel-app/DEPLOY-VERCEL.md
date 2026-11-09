@@ -13,8 +13,8 @@ in the database too, because Vercel's disk is not permanent.
 
 ## 2. Fill the database from your PC (one time)
 
-Windows has no built-in certificate list for MySQL, so download the TiDB certificate once:
-`https://letsencrypt.org/certs/isrgrootx1.pem` (save it anywhere, for example `C:\certs\isrgrootx1.pem`).
+Windows has no built-in certificate list for MySQL, so TiDB's certificate is needed.
+The certificate is already in this repo at `certs/isrgrootx1.pem` (a public file, safe to keep in git). If it is ever missing, download it from `https://letsencrypt.org/certs/isrgrootx1.pem`.
 
 In PowerShell, inside the `laravel-app` folder (these settings last only for this window, nothing is saved in `.env`):
 
@@ -25,7 +25,7 @@ $env:DB_PORT = "4000"
 $env:DB_DATABASE = "portfolio"
 $env:DB_USERNAME = "<user from TiDB>"
 $env:DB_PASSWORD = "<password from TiDB>"
-$env:MYSQL_ATTR_SSL_CA = "C:\certs\isrgrootx1.pem"
+$env:MYSQL_ATTR_SSL_CA = "$PWD\certs\isrgrootx1.pem"
 
 php artisan migrate --force      # creates the tables
 php artisan portfolio:admin      # asks for your email and a password (12+ characters)
@@ -37,7 +37,7 @@ Do **not** run `php artisan db:seed` against the real database. It now does noth
 
 ```powershell
 mysqldump -uroot --no-create-info --complete-insert --skip-triggers portfolio personal_info skills experiences projects project_images > portfolio-data.sql
-mysql --host=<host> --port=4000 --user=<user> --password --ssl-ca=C:\certs\isrgrootx1.pem portfolio < portfolio-data.sql
+mysql --host=<host> --port=4000 --user=<user> --password --ssl-ca=certs\isrgrootx1.pem portfolio < portfolio-data.sql
 ```
 
 (The `users` table is left out on purpose, so your new admin login stays.)
